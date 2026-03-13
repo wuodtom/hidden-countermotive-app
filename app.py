@@ -10,8 +10,7 @@ import streamlit as st
 
 
 st.set_page_config(
-    page_title="Hidden Countermotive Interpreter v2",
-    page_icon="🧠",
+    page_title="Hidden Countermotive Interpreter v",
     layout="wide",
 )
 
