@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass, asdict
 from io import BytesIO
 from typing import Dict, List, Tuple
@@ -10,18 +9,12 @@ import pandas as pd
 import streamlit as st
 
 
-# =========================
-# Page config
-# =========================
 st.set_page_config(
     page_title="Hidden Countermotive Interpreter v2",
     page_icon="🧠",
     layout="wide",
 )
 
-# =========================
-# Theme / style
-# =========================
 st.markdown("""
 <style>
     .main {
@@ -188,7 +181,6 @@ WORKED_EXAMPLES = {
     },
 }
 
-
 TEXT_CUES = {
     "price_premium": {
         2: ["premium", "luxury", "expensive", "$", "elite", "high-priced", "exclusive", "designer"],
@@ -262,6 +254,13 @@ def initialize_state() -> None:
         "observed": "",
         "surface": "",
         "context": "",
+
+        "domain_widget": "Consumption / product purchase",
+        "platform_widget": "General",
+        "observed_widget": "",
+        "surface_widget": "",
+        "context_widget": "",
+
         "price_premium": 5.0,
         "social_visibility": 5.0,
         "identity_relevance": 5.0,
@@ -277,6 +276,14 @@ def initialize_state() -> None:
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+
+
+def sync_widget_state_to_model_state() -> None:
+    st.session_state.domain = st.session_state.domain_widget
+    st.session_state.platform = st.session_state.platform_widget
+    st.session_state.observed = st.session_state.observed_widget
+    st.session_state.surface = st.session_state.surface_widget
+    st.session_state.context = st.session_state.context_widget
 
 
 def features_from_state() -> InputFeatures:
@@ -298,17 +305,28 @@ def apply_preset(name: str) -> None:
     preset = DOMAIN_PRESETS[name]
     for k, v in preset.items():
         st.session_state[k] = float(v)
+    st.session_state.last_analysis = None
 
 
 def load_example(name: str) -> None:
     ex = WORKED_EXAMPLES[name]
+
     st.session_state.domain = ex["domain"]
     st.session_state.platform = ex["platform"]
     st.session_state.observed = ex["observed"]
     st.session_state.surface = ex["surface"]
     st.session_state.context = ex["context"]
+
+    st.session_state.domain_widget = ex["domain"]
+    st.session_state.platform_widget = ex["platform"]
+    st.session_state.observed_widget = ex["observed"]
+    st.session_state.surface_widget = ex["surface"]
+    st.session_state.context_widget = ex["context"]
+
     for k, v in ex["features"].items():
         st.session_state[k] = float(v)
+
+    st.session_state.last_analysis = None
 
 
 def normalize_features(features: InputFeatures) -> np.ndarray:
@@ -543,7 +561,6 @@ def create_csv_bytes(df: pd.DataFrame) -> bytes:
 def create_pdf_report(summary: Dict, scores_df: pd.DataFrame, features_df: pd.DataFrame) -> bytes:
     output = BytesIO()
     with PdfPages(output) as pdf:
-        # Page 1: summary
         fig1 = plt.figure(figsize=(8.27, 11.69))
         fig1.text(0.06, 0.95, "Hidden Countermotive Interpreter Report", fontsize=16, weight="bold")
         y = 0.90
@@ -570,17 +587,14 @@ def create_pdf_report(summary: Dict, scores_df: pd.DataFrame, features_df: pd.Da
         pdf.savefig(fig1, bbox_inches="tight")
         plt.close(fig1)
 
-        # Page 2: scores chart
         fig2 = make_bar_chart(summary["scores"])
         pdf.savefig(fig2, bbox_inches="tight")
         plt.close(fig2)
 
-        # Page 3: feature chart
         fig3 = make_feature_chart(summary["manual_features"], summary["auto_scores"], summary["blended_features"])
         pdf.savefig(fig3, bbox_inches="tight")
         plt.close(fig3)
 
-        # Page 4: tables
         fig4 = plt.figure(figsize=(8.27, 11.69))
         fig4.text(0.06, 0.96, "Driver Scores", fontsize=13, weight="bold")
         ax1 = fig4.add_axes([0.05, 0.58, 0.90, 0.30])
@@ -626,25 +640,29 @@ with left:
         "Domain",
         ["Consumption / product purchase", "Education / information product", "Fitness / self-improvement",
          "Professional signaling", "Social media behavior", "Community / belonging", "Relationship signaling", "Custom"],
-        key="domain",
+        key="domain_widget",
     )
-    st.selectbox("Platform / environment", ["General", "WhatsApp Status", "Instagram", "Facebook", "LinkedIn"], key="platform")
+    st.selectbox(
+        "Platform / environment",
+        ["General", "WhatsApp Status", "Instagram", "Facebook", "LinkedIn"],
+        key="platform_widget"
+    )
 
     st.text_area(
         "Observed phenomenon",
-        key="observed",
+        key="observed_widget",
         height=120,
         placeholder="Example: A person posts a certificate on LinkedIn after completing a course.",
     )
     st.text_area(
         "Stated surface function",
-        key="surface",
+        key="surface_widget",
         height=100,
         placeholder="Example: They want to share learning progress and professional growth.",
     )
     st.text_area(
         "Optional context notes",
-        key="context",
+        key="context_widget",
         height=100,
         placeholder="Add any extra cues: premium pricing, audience, emotional tone, repetition, identity language, etc.",
     )
@@ -693,6 +711,12 @@ with left:
         st.session_state.observed = ""
         st.session_state.surface = ""
         st.session_state.context = ""
+
+        st.session_state.observed_widget = ""
+        st.session_state.surface_widget = ""
+        st.session_state.context_widget = ""
+
+        st.session_state.last_analysis = None
         st.rerun()
 
 with right:
@@ -725,14 +749,25 @@ Best-structure explanation + confidence
     for item in LATENT_ORDER:
         st.markdown(f'<span class="pill">{LATENT_LABELS[item]}</span>', unsafe_allow_html=True)
 
-should_run = analyze or bool(st.session_state.observed.strip() and st.session_state.surface.strip() and st.session_state.get("last_analysis") is None)
+sync_widget_state_to_model_state()
+
+should_run = analyze or bool(
+    st.session_state.observed.strip() and
+    st.session_state.surface.strip() and
+    st.session_state.get("last_analysis") is None
+)
 
 if should_run:
     if not st.session_state.observed.strip() or not st.session_state.surface.strip():
         st.warning("Add both the observed phenomenon and stated surface function.")
     else:
         manual_features = features_from_state()
-        auto_scores = auto_score_from_text(st.session_state.observed, st.session_state.surface, st.session_state.context, st.session_state.platform)
+        auto_scores = auto_score_from_text(
+            st.session_state.observed,
+            st.session_state.surface,
+            st.session_state.context,
+            st.session_state.platform
+        )
         blended_features = blend_features(manual_features, auto_scores, auto_weight)
         scores = compute_hidden_drivers(blended_features, platform=st.session_state.platform)
         hcr = compute_hcr(scores)
@@ -742,10 +777,8 @@ if should_run:
         )
         best_structure = generate_best_structure(scores, st.session_state.surface, st.session_state.domain, st.session_state.platform)
         plain_translation = generate_plain_translation(scores, st.session_state.surface, st.session_state.platform)
-        notes = generate_driver_notes(scores)
         scores_df = result_dataframe(scores)
         features_df = feature_dataframe(manual_features, auto_scores, blended_features)
-        top3 = top_latent_drivers(scores)
 
         summary = {
             "domain": st.session_state.domain,
@@ -829,7 +862,10 @@ Confidence explanation: <span class="small-note">Confidence rises when manual an
 
     st.markdown("### Feature scoring comparison")
     st.dataframe(features_df, use_container_width=True, hide_index=True)
-    st.pyplot(make_feature_chart(summary["manual_features"], summary["auto_scores"], summary["blended_features"]), clear_figure=True)
+    st.pyplot(
+        make_feature_chart(summary["manual_features"], summary["auto_scores"], summary["blended_features"]),
+        clear_figure=True
+    )
 
     st.markdown("### Export")
     csv_bytes = create_csv_bytes(scores_df)
