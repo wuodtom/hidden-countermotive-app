@@ -619,7 +619,7 @@ def create_pdf_report(summary: Dict, scores_df: pd.DataFrame, features_df: pd.Da
 
 initialize_state()
 
-st.title("🧠 Hidden Countermotive Interpreter v2")
+st.title("Hidden Countermotive Interpreter")
 st.caption("Observed phenomenon → stated surface function → inferred hidden driver")
 
 with st.expander("What changed in v2", expanded=True):
